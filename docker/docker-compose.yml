@@ -1,0 +1,41 @@
+services:
+  postgres:
+    image: postgres:14
+    container_name: iceberg-hive-postgres
+    environment:
+      POSTGRES_DB: metastore_db
+      POSTGRES_USER: hive
+      POSTGRES_PASSWORD: password
+    ports:
+      - "5432:5432"
+    volumes:
+      - hive-postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U hive -d metastore_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  metastore:
+    image: apache/hive:4.0.0
+    container_name: iceberg-hive-metastore
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      SERVICE_NAME: metastore
+      DB_DRIVER: postgres
+      SERVICE_OPTS: >-
+        -Xmx1G
+        -Djavax.jdo.option.ConnectionDriverName=org.postgresql.Driver
+        -Djavax.jdo.option.ConnectionURL=jdbc:postgresql://postgres:5432/metastore_db
+        -Djavax.jdo.option.ConnectionUserName=hive
+        -Djavax.jdo.option.ConnectionPassword=password
+    ports:
+      - "9083:9083"
+    volumes:
+      - ../data/hive_warehouse:/opt/hive/data/warehouse
+      - ./drivers/postgresql.jar:/opt/hive/lib/postgres.jar
+
+volumes:
+  hive-postgres-data:
